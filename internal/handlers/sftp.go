@@ -394,6 +394,67 @@ func CopyFile(c *gin.Context) {
 	})
 }
 
+// UploadFolder uploads a full folder preserving relative paths
+func UploadFolder(c *gin.Context) {
+	client, err := getSFTPClient(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	form, err := c.MultipartForm()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid form data"})
+		return
+	}
+
+	files := form.File["files"]
+	if len(files) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No files provided"})
+		return
+	}
+
+	basePath := c.PostForm("path")
+	if basePath == "" {
+		basePath = "/"
+	}
+
+	// relativePaths is parallel to files — contains webkitRelativePath values
+	relativePaths := form.Value["paths"]
+
+	var uploaded []string
+	var failed []string
+
+	for i, fileHeader := range files {
+		file, err := fileHeader.Open()
+		if err != nil {
+			failed = append(failed, fileHeader.Filename)
+			continue
+		}
+
+		var remotePath string
+		if i < len(relativePaths) && relativePaths[i] != "" {
+			remotePath = filepath.Join(basePath, relativePaths[i])
+		} else {
+			remotePath = filepath.Join(basePath, fileHeader.Filename)
+		}
+
+		if err := client.UploadFile(remotePath, file, fileHeader.Size); err != nil {
+			failed = append(failed, fileHeader.Filename)
+		} else {
+			uploaded = append(uploaded, remotePath)
+		}
+
+		file.Close()
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"uploaded": uploaded,
+		"failed":   failed,
+		"total":    len(files),
+	})
+}
+
 // UploadMultipleFiles uploads multiple files
 func UploadMultipleFiles(c *gin.Context) {
 	client, err := getSFTPClient(c)

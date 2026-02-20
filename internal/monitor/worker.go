@@ -54,6 +54,7 @@ func (p *WorkerPool) StartAll() error {
 	}
 
 	for _, server := range servers {
+		server := server
 		password, err := utils.Decrypt(server.Password)
 		if err != nil {
 			utils.AppLogger.Error("Failed to decrypt password for server %d: %v", server.ID, err)
@@ -67,7 +68,6 @@ func (p *WorkerPool) StartAll() error {
 	return nil
 }
 
-// AddWorker adds a new worker for a server
 func (p *WorkerPool) AddWorker(server *models.Server, password string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -92,7 +92,6 @@ func (p *WorkerPool) AddWorker(server *models.Server, password string) error {
 	return nil
 }
 
-// RemoveWorker stops and removes a worker
 func (p *WorkerPool) RemoveWorker(serverID uint) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -104,7 +103,6 @@ func (p *WorkerPool) RemoveWorker(serverID uint) {
 	}
 }
 
-// StopAll stops all workers
 func (p *WorkerPool) StopAll() {
 	p.cancel()
 
@@ -119,7 +117,6 @@ func (p *WorkerPool) StopAll() {
 	utils.AppLogger.Info("Stopped all monitoring workers")
 }
 
-// GetWorkerStatus returns the status of a worker
 func (p *WorkerPool) GetWorkerStatus(serverID uint) bool {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -130,7 +127,6 @@ func (p *WorkerPool) GetWorkerStatus(serverID uint) bool {
 	return false
 }
 
-// Run starts the worker's monitoring loop
 func (w *Worker) Run() {
 	w.mu.Lock()
 	w.running = true
@@ -142,7 +138,6 @@ func (w *Worker) Run() {
 		w.mu.Unlock()
 	}()
 
-	// Initial connection attempt
 	if err := w.connect(); err != nil {
 		w.logger.Error("Initial connection failed: %v", err)
 		w.updateServerStatus(models.StatusError)
@@ -182,20 +177,17 @@ func (w *Worker) Run() {
 				w.updateServerStatus(models.StatusOnline)
 			}
 
-			// Collect and broadcast metrics (no database storage)
 			metrics, err := w.collector.CollectAll()
 			if err != nil {
 				w.logger.Error("Failed to collect metrics: %v", err)
 				continue
 			}
 
-			// Broadcast via WebSocket only
 			websocket.Hub.BroadcastMetrics(metrics)
 		}
 	}
 }
 
-// connect establishes SSH connection
 func (w *Worker) connect() error {
 	client, err := ssh.Pool.GetClient(w.server, w.password)
 	if err != nil {
